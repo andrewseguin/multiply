@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
+import MovingObject from './components/MovingObject';
 import './index.css';
 
 // Generate a random multiplication problem based on difficulty (current step)
@@ -14,13 +15,13 @@ const generateProblem = (currentStep) => {
     min = 1;
     max = 5;
   } else if (currentStep <= 30) {
-    // Medium: 3x3 to 9x9
-    min = 3;
-    max = 9;
+    // Medium: 2x2 to 7x7
+    min = 2;
+    max = 7;
   } else {
-    // Hard: 6x6 to 12x12
-    min = 6;
-    max = 12;
+    // Hard: 5x5 to 10x10 (Capped at 10x10)
+    min = 5;
+    max = 10;
   }
 
   const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -39,6 +40,14 @@ export default function App() {
   const [isClimbing, setIsClimbing] = useState(false);
   const [character, setCharacter] = useState(null); // 'climber', 'robot', 'superhero'
   const [location, setLocation] = useState(null); // 'mountain', 'space', etc.
+  // celebrationEffect: 'eruption' | 'fireworks' | 'bubbles' | 'stars' | null
+  const [celebrationEffect, setCelebrationEffect] = useState(null);
+
+  // Unlocked locations state, persisted in localStorage
+  const [unlockedLocations, setUnlockedLocations] = useState(() => {
+    const saved = localStorage.getItem('unlockedLocations');
+    return saved ? JSON.parse(saved) : ['mountain'];
+  });
 
   const locations = [
     {
@@ -55,15 +64,130 @@ export default function App() {
         { x: 50, y: 85 }   // Summit
       ]
     },
-    { id: 'volcano', name: 'Volcano', src: '/volcano.png', description: 'A fiery challenge.', color: 'from-orange-500 to-red-600' },
-    { id: 'jungle', name: 'Jungle', src: '/jungle.png', description: 'Wild wilderness.', color: 'from-green-500 to-teal-600' },
-    { id: 'ocean', name: 'Ocean', src: '/ocean.png', description: 'Deep blue adventure.', color: 'from-blue-400 to-cyan-600' },
-    { id: 'desert', name: 'Desert', src: '/desert.png', description: 'Hot sands.', color: 'from-yellow-400 to-orange-500' },
-    { id: 'city', name: 'City', src: '/city.png', description: 'Neon future.', color: 'from-purple-500 to-pink-600' },
-    { id: 'castle', name: 'Castle', src: '/castle.png', description: 'Medieval fortress.', color: 'from-slate-400 to-gray-600' },
-    { id: 'candy', name: 'Candy', src: '/candy.png', description: 'Sweet climb.', color: 'from-pink-300 to-rose-400' },
-    { id: 'sky', name: 'Sky', src: '/sky.png', description: 'Floating islands.', color: 'from-sky-300 to-blue-400' },
-    { id: 'space', name: 'Space', src: '/space.png', description: 'Cosmic elevator.', color: 'from-indigo-500 to-purple-800' },
+    {
+      id: 'volcano',
+      name: 'Volcano',
+      src: '/volcano.png',
+      description: 'A fiery challenge.',
+      color: 'from-orange-500 to-red-600',
+      path: [
+        { x: 50, y: 5 },   // Base
+        { x: 35, y: 15 },  // Left switchback
+        { x: 65, y: 30 },  // Right switchback
+        { x: 40, y: 50 },  // Left mid-mountain
+        { x: 60, y: 70 },  // Right near top
+        { x: 50, y: 85 }   // Crater rim
+      ]
+    },
+    {
+      id: 'jungle',
+      name: 'Jungle',
+      src: '/jungle.png',
+      description: 'Wild wilderness.',
+      color: 'from-green-500 to-teal-600',
+      path: [
+        { x: 10, y: 5 },
+        { x: 30, y: 25 },
+        { x: 70, y: 45 },
+        { x: 40, y: 65 },
+        { x: 60, y: 85 }
+      ]
+    },
+    {
+      id: 'ocean',
+      name: 'Ocean',
+      src: '/ocean.png',
+      description: 'Deep blue adventure.',
+      color: 'from-blue-400 to-cyan-600',
+      path: [
+        { x: 80, y: 5 },
+        { x: 60, y: 30 },
+        { x: 30, y: 50 },
+        { x: 50, y: 70 },
+        { x: 20, y: 90 }
+      ]
+    },
+    {
+      id: 'desert',
+      name: 'Desert',
+      src: '/desert.png',
+      description: 'Hot sands.',
+      color: 'from-yellow-400 to-orange-500',
+      path: [
+        { x: 10, y: 5 },
+        { x: 50, y: 25 },
+        { x: 20, y: 50 },
+        { x: 80, y: 75 },
+        { x: 50, y: 90 }
+      ]
+    },
+    {
+      id: 'city',
+      name: 'City',
+      src: '/city.png',
+      description: 'Neon future.',
+      color: 'from-purple-500 to-pink-600',
+      path: [
+        { x: 20, y: 5 },
+        { x: 20, y: 30 },
+        { x: 80, y: 35 },
+        { x: 80, y: 60 },
+        { x: 50, y: 90 }
+      ]
+    },
+    {
+      id: 'castle',
+      name: 'Castle',
+      src: '/castle.png',
+      description: 'Medieval fortress.',
+      color: 'from-slate-400 to-gray-600',
+      path: [
+        { x: 50, y: 5 },
+        { x: 30, y: 25 },
+        { x: 70, y: 50 },
+        { x: 40, y: 75 },
+        { x: 50, y: 85 }
+      ]
+    },
+    {
+      id: 'candy',
+      name: 'Candy',
+      src: '/candy.png',
+      description: 'Sweet climb.',
+      color: 'from-pink-300 to-rose-400',
+      path: [
+        { x: 10, y: 10 },
+        { x: 30, y: 30 },
+        { x: 50, y: 50 },
+        { x: 70, y: 70 },
+        { x: 90, y: 90 }
+      ]
+    },
+    {
+      id: 'sky',
+      name: 'Sky',
+      src: '/sky.png',
+      description: 'Floating islands.',
+      color: 'from-sky-300 to-blue-400',
+      path: [
+        { x: 20, y: 10 },
+        { x: 80, y: 30 },
+        { x: 20, y: 60 },
+        { x: 80, y: 80 },
+        { x: 50, y: 90 }
+      ]
+    },
+    {
+      id: 'space',
+      name: 'Space',
+      src: '/space.png',
+      description: 'Cosmic elevator.',
+      color: 'from-indigo-500 to-purple-800',
+      path: [
+        { x: 50, y: 5 },
+        { x: 50, y: 95 }
+      ]
+    },
   ];
 
   const currentLocation = locations.find(l => l.id === location);
@@ -136,12 +260,29 @@ export default function App() {
         }, 600);
       }
     }
-  }, [step, isModalOpen, victory, isClimbing, character]);
+  }, [step, isModalOpen, victory, isClimbing, character, TOTAL_STEPS]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  // Periodic eruptions removed to focus on answer celebrations
+
+  // Unlock next level on victory
+  useEffect(() => {
+    if (victory && location) {
+      const currentIndex = locations.findIndex(l => l.id === location);
+      if (currentIndex >= 0 && currentIndex < locations.length - 1) {
+        const nextLocationId = locations[currentIndex + 1].id;
+        if (!unlockedLocations.includes(nextLocationId)) {
+          const newUnlocked = [...unlockedLocations, nextLocationId];
+          setUnlockedLocations(newUnlocked);
+          localStorage.setItem('unlockedLocations', JSON.stringify(newUnlocked));
+        }
+      }
+    }
+  }, [victory, location, unlockedLocations]);
 
   const handleAnswerSubmit = (e) => {
     e.preventDefault();
@@ -150,6 +291,17 @@ export default function App() {
       setIsModalOpen(false);
       setUserAnswer('');
       setIsError(false);
+
+      // Trigger Celebration
+      let effect = 'stars'; // Default
+      if (location === 'volcano') effect = 'eruption';
+      else if (location === 'ocean') effect = 'bubbles';
+      else if (['space', 'sky', 'city'].includes(location)) effect = 'fireworks';
+
+      setCelebrationEffect(effect);
+      setTimeout(() => setCelebrationEffect(null), 3000); // 3 second celebration
+
+      setStep(prev => prev + 1);
     } else {
       setIsError(true);
       // Punishment: Move back 1 step
@@ -215,25 +367,51 @@ export default function App() {
           </motion.h1>
 
           <div className="grid grid-cols-5 gap-6 justify-items-center w-full overflow-y-auto max-h-[80vh] p-4">
-            {locations.map((loc, index) => (
-              <motion.button
-                key={loc.id}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setLocation(loc.id)}
-                className="group relative w-full aspect-[3/4] rounded-2xl overflow-hidden border-2 border-white/20 hover:border-white shadow-xl transition-all"
-              >
-                <img src={loc.src} alt={loc.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors"></div>
-                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent text-left">
-                  <span className={`text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${loc.color}`}>{loc.name.toUpperCase()}</span>
-                  <p className="text-gray-300 mt-1 text-xs">{loc.description}</p>
-                </div>
-              </motion.button>
-            ))}
+            {locations.map((loc, index) => {
+              // User requested to remove locking: always unlocked
+              const isLocked = false;
+
+              const handleLocationSelect = () => {
+                setLocation(loc.id);
+                // Auto-pick character
+                const match = characters.find(c => c.allowedLocations?.includes(loc.id));
+                setCharacter(match ? match.id : 'climber');
+              };
+
+              return (
+                <motion.button
+                  key={loc.id}
+                  disabled={isLocked}
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: index * 0.05 }}
+                  whileHover={!isLocked ? { scale: 1.05 } : {}}
+                  whileTap={!isLocked ? { scale: 0.95 } : {}}
+                  onClick={handleLocationSelect}
+                  className={`group relative w-full aspect-[3/4] rounded-2xl overflow-hidden border-2 shadow-xl transition-all ${isLocked ? 'border-gray-700 opacity-60 cursor-not-allowed grayscale' : 'border-white/20 hover:border-white'
+                    }`}
+                >
+                  <img src={loc.src} alt={loc.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  <div className={`absolute inset-0 transition-colors ${isLocked ? 'bg-black/60' : 'bg-black/30 group-hover:bg-black/10'}`}></div>
+
+                  {isLocked && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-black/50 p-3 rounded-full border border-white/20 backdrop-blur-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent text-left">
+                    <span className={`text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${loc.color}`}>{loc.name.toUpperCase()}</span>
+                    <p className="text-gray-300 mt-1 text-xs">{loc.description}</p>
+                    {isLocked && <p className="text-red-400 text-xs font-bold mt-1 uppercase tracking-wider">Locked</p>}
+                  </div>
+                </motion.button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -289,10 +467,16 @@ export default function App() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-gray-900 font-sans text-white select-none">
       {/* Background */}
-      <img
+      <motion.img
         src={currentLocation?.src || '/mountain.png'}
         alt="Background"
         className="absolute inset-0 w-full h-full object-cover"
+        animate={location === 'volcano' ? {
+          x: celebrationEffect === 'eruption' ? [-5, 5, -5, 5, 0] : [0, -2, 2, -2, 2, 0],
+          transition: celebrationEffect === 'eruption'
+            ? { duration: 0.2, repeat: Infinity }
+            : { duration: 0.5, repeat: Infinity, repeatDelay: 5 }
+        } : {}}
       />
 
       {/* Climber */}
@@ -311,7 +495,100 @@ export default function App() {
       </motion.div>
 
       {/* UI Overlay */}
-      <div className="absolute top-4 left-4 p-4 bg-black/40 backdrop-blur-md rounded-xl border border-white/10">
+      {/* Celebration Overlay Effects */}
+      <AnimatePresence>
+        {(victory || celebrationEffect) && (
+          <>
+            {/* Volcano Eruption */}
+            {(location === 'volcano' && (celebrationEffect === 'eruption' || victory)) && (
+              <motion.img
+                src="/volcano_eruption.png"
+                initial={{ opacity: 0, scale: 0.5, y: 100 }}
+                animate={{ opacity: 1, scale: victory ? 1.2 : 1.1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5, type: 'spring' }}
+                className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-full h-full object-contain pointer-events-none z-30 ${!victory ? 'opacity-90' : ''}`}
+              />
+            )}
+
+            {/* Fireworks (Space, Sky, City) - Multiple bursts */}
+            {(['fireworks', 'stars'].includes(celebrationEffect) || (victory && ['space', 'sky', 'city', 'mountain', 'castle', 'candy', 'jungle', 'desert'].includes(location))) && (
+              <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+                {[...Array(5)].map((_, i) => (
+                  <motion.img
+                    key={i}
+                    src={celebrationEffect === 'stars' ? "/star_burst.png" : "/fireworks.png"}
+                    initial={{ scale: 0, opacity: 0, x: 0, y: 0 }}
+                    animate={{
+                      scale: [0, 1.5, 1.2],
+                      opacity: [0, 1, 0],
+                      x: Math.random() * 400 - 200,
+                      y: Math.random() * 400 - 200
+                    }}
+                    transition={{ duration: 1.5, delay: i * 0.2, ease: "easeOut" }}
+                    className="absolute top-1/2 left-1/2 w-64 h-64 object-contain"
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Bubble Burst (Ocean) */}
+            {(celebrationEffect === 'bubbles' || (victory && location === 'ocean')) && (
+              <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+                {[...Array(8)].map((_, i) => (
+                  <motion.img
+                    key={i}
+                    src="/bubble_burst.png"
+                    initial={{ scale: 0, opacity: 0, y: 100 }}
+                    animate={{
+                      scale: [0, 1.2, 1.5],
+                      opacity: [0, 0.8, 0],
+                      y: -500,
+                      x: Math.random() * 200 - 100
+                    }}
+                    transition={{ duration: 2, delay: i * 0.1, ease: "easeOut" }}
+                    className="absolute bottom-0 left-1/2 w-48 h-48 object-contain"
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Moving Objects */}
+      {/* Universal Clouds/Atmosphere for outdoor locations */}
+      {['mountain', 'volcano', 'jungle', 'desert', 'city', 'castle', 'candy', 'sky'].includes(location) && (
+        <>
+          <MovingObject src="/cloud1.png" type="cloud" duration={25} top="10%" scale={2} />
+          <MovingObject src="/cloud2.png" type="cloud" duration={35} delay={10} top="25%" scale={1.5} reverse />
+        </>
+      )}
+
+      {/* Birds for high altitude */}
+      {['mountain', 'sky', 'castle'].includes(location) && (
+        <MovingObject src="/bird.png" type="bird" duration={15} top="15%" scale={0.8} />
+      )}
+
+      {/* Ocean Elements */}
+      {location === 'ocean' && (
+        <>
+          <MovingObject src="/fish1.png" type="fish" duration={18} top="40%" scale={1} />
+          <MovingObject src="/fish2.png" type="fish" duration={22} delay={5} top="70%" scale={0.8} reverse />
+          <MovingObject src="/bubble.png" type="bubble" duration={10} top="80%" scale={0.5} />
+        </>
+      )}
+
+      {/* Space Elements */}
+      {location === 'space' && (
+        <>
+          <MovingObject src="/asteroid.png" type="asteroid" duration={30} top="20%" scale={1.2} />
+          <MovingObject src="/satellite.png" type="satellite" duration={45} top="50%" scale={0.9} reverse />
+        </>
+      )}
+
+      {/* UI Overlay */}
+      <div className="absolute top-4 left-4 p-4 bg-black/40 backdrop-blur-md rounded-xl border border-white/10 z-20">
         <h1 className="text-xl font-bold text-yellow-400">Multiply {currentLocation?.name || 'Mountain'}</h1>
         <div className="mt-2 flex items-center gap-2">
           <div className="w-48 h-4 bg-gray-700/50 rounded-full overflow-hidden border border-white/20">
@@ -395,6 +672,6 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </div >
   );
 }
