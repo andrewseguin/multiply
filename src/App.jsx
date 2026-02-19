@@ -38,22 +38,74 @@ export default function App() {
 
   const [isClimbing, setIsClimbing] = useState(false);
   const [character, setCharacter] = useState(null); // 'climber', 'robot', 'superhero'
-  const [location, setLocation] = useState(null); // 'mountain', 'space'
+  const [location, setLocation] = useState(null); // 'mountain', 'space', etc.
+
+  const locations = [
+    {
+      id: 'mountain',
+      name: 'Mountain',
+      src: '/mountain.png',
+      description: 'The classic climb.',
+      color: 'from-emerald-400 to-green-600',
+      path: [
+        { x: 55, y: 5 },   // Start bottom-center/right
+        { x: 35, y: 25 },  // Curve left
+        { x: 65, y: 45 },  // Curve right under the peak
+        { x: 45, y: 65 },  // Curve back left
+        { x: 50, y: 85 }   // Summit
+      ]
+    },
+    { id: 'volcano', name: 'Volcano', src: '/volcano.png', description: 'A fiery challenge.', color: 'from-orange-500 to-red-600' },
+    { id: 'jungle', name: 'Jungle', src: '/jungle.png', description: 'Wild wilderness.', color: 'from-green-500 to-teal-600' },
+    { id: 'ocean', name: 'Ocean', src: '/ocean.png', description: 'Deep blue adventure.', color: 'from-blue-400 to-cyan-600' },
+    { id: 'desert', name: 'Desert', src: '/desert.png', description: 'Hot sands.', color: 'from-yellow-400 to-orange-500' },
+    { id: 'city', name: 'City', src: '/city.png', description: 'Neon future.', color: 'from-purple-500 to-pink-600' },
+    { id: 'castle', name: 'Castle', src: '/castle.png', description: 'Medieval fortress.', color: 'from-slate-400 to-gray-600' },
+    { id: 'candy', name: 'Candy', src: '/candy.png', description: 'Sweet climb.', color: 'from-pink-300 to-rose-400' },
+    { id: 'sky', name: 'Sky', src: '/sky.png', description: 'Floating islands.', color: 'from-sky-300 to-blue-400' },
+    { id: 'space', name: 'Space', src: '/space.png', description: 'Cosmic elevator.', color: 'from-indigo-500 to-purple-800' },
+  ];
+
+  const currentLocation = locations.find(l => l.id === location);
 
   const TOTAL_STEPS = 50;
 
-  // Calculate climber position based on progress
-  // Simple S-curve path approximation
-  // Start: Bottom Left (10%, 90%)
-  // End: Top Center/Right (60%, 15%)
+  // Calculate climber position based on progress and current location's path
   const getClimberPosition = (currentStep) => {
     const progress = currentStep / TOTAL_STEPS;
 
-    // Linear interpolation with some sine wave for "winding" effect
-    const x = 10 + (progress * 50) + (Math.sin(progress * Math.PI * 3) * 10);
-    const bottom = 10 + (progress * 70); // 10% bottom to 80% bottom (which is 20% top)
+    // Default linear vertical path if no specific path is defined
+    const defaultPath = [
+      { x: 50, y: 10 },
+      { x: 50, y: 90 }
+    ];
 
-    return { left: `${x}%`, bottom: `${bottom}%` };
+    const path = currentLocation?.path || defaultPath;
+
+    // If progress is 0, return start. If 1, return end.
+    if (progress <= 0) return { left: `${path[0].x}%`, bottom: `${path[0].y}%` };
+    if (progress >= 1) return { left: `${path[path.length - 1].x}%`, bottom: `${path[path.length - 1].y}%` };
+
+    // Calculate which segment of the path we are on
+    // Total segments = points - 1
+    const totalSegments = path.length - 1;
+    const segmentLength = 1 / totalSegments;
+
+    const currentSegmentIndex = Math.min(
+      Math.floor(progress / segmentLength),
+      totalSegments - 1
+    );
+
+    const segmentProgress = (progress - (currentSegmentIndex * segmentLength)) / segmentLength;
+
+    const p1 = path[currentSegmentIndex];
+    const p2 = path[currentSegmentIndex + 1];
+
+    // Interpolate
+    const x = p1.x + (p2.x - p1.x) * segmentProgress;
+    const y = p1.y + (p2.y - p1.y) * segmentProgress;
+
+    return { left: `${x}%`, bottom: `${y}%` };
   };
 
   const handleKeyDown = useCallback((e) => {
@@ -114,21 +166,31 @@ export default function App() {
     setIsModalOpen(false);
     setUserAnswer('');
     setCharacter(null); // Go back to character selection
+    setCharacter(null); // Go back to character selection
     setLocation(null); // Go back to location selection
   };
 
   const characters = [
-    { id: 'climber', name: 'Boy', src: '/climber.png' },
-    { id: 'girl', name: 'Girl', src: '/girl.png' },
-    { id: 'robot', name: 'Robot', src: '/robot.png' },
-    { id: 'superhero', name: 'Hero', src: '/superhero.png' },
-    { id: 'ninja', name: 'Ninja', src: '/ninja.png' },
-    { id: 'astronaut', name: 'Astro', src: '/astronaut.png' },
-    { id: 'pirate', name: 'Pirate', src: '/pirate.png' },
-    { id: 'wizard', name: 'Wizard', src: '/wizard.png' },
-    { id: 'knight', name: 'Knight', src: '/knight.png' },
-    { id: 'alien', name: 'Alien', src: '/alien.png' },
+    { id: 'climber', name: 'Boy', src: '/climber.png', allowedLocations: ['mountain', 'volcano', 'jungle', 'desert', 'city', 'castle', 'candy'] },
+    { id: 'girl', name: 'Girl', src: '/girl.png', allowedLocations: ['mountain', 'volcano', 'jungle', 'desert', 'city', 'castle', 'candy'] },
+    { id: 'robot', name: 'Robot', src: '/robot.png', allowedLocations: ['volcano', 'ocean', 'city', 'candy', 'space'] },
+    { id: 'superhero', name: 'Hero', src: '/superhero.png', allowedLocations: ['volcano', 'ocean', 'city', 'sky', 'space'] },
+    { id: 'ninja', name: 'Ninja', src: '/ninja.png', allowedLocations: ['mountain', 'volcano', 'jungle', 'desert', 'city', 'sky'] },
+    { id: 'astronaut', name: 'Astro', src: '/astronaut.png', allowedLocations: ['space'] },
+    { id: 'pirate', name: 'Pirate', src: '/pirate.png', allowedLocations: ['jungle', 'ocean'] },
+    { id: 'wizard', name: 'Wizard', src: '/wizard.png', allowedLocations: ['mountain', 'castle', 'sky'] },
+    { id: 'knight', name: 'Knight', src: '/knight.png', allowedLocations: ['desert', 'castle'] },
+    { id: 'alien', name: 'Alien', src: '/alien.png', allowedLocations: ['ocean', 'candy', 'sky', 'space'] },
+    { id: 'dragon', name: 'Dragon', src: '/dragon.png', allowedLocations: ['volcano', 'castle', 'sky'] },
+    { id: 'monkey', name: 'Monkey', src: '/monkey.png', allowedLocations: ['jungle', 'mountain'] },
+    { id: 'diver', name: 'Diver', src: '/diver.png', allowedLocations: ['ocean'] },
+    { id: 'mummy', name: 'Mummy', src: '/mummy.png', allowedLocations: ['desert', 'castle'] },
+    { id: 'gingerbread', name: 'Ginger', src: '/gingerbread.png', allowedLocations: ['candy'] },
   ];
+
+  const availableCharacters = characters.filter(char =>
+    !char.allowedLocations || char.allowedLocations.includes(location)
+  );
 
   if (!location) {
     return (
@@ -143,51 +205,35 @@ export default function App() {
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
         </div>
 
-        <div className="relative z-10 w-full max-w-5xl p-8 text-center flex flex-col items-center justify-center">
+        <div className="relative z-10 w-full max-w-7xl p-8 text-center flex flex-col items-center justify-center h-full">
           <motion.h1
             initial={{ y: -50, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="text-6xl font-black mb-16 text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 drop-shadow-[0_5px_5px_rgba(0,0,0,0.5)]"
+            className="text-6xl font-black mb-12 text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 drop-shadow-[0_5px_5px_rgba(0,0,0,0.5)]"
           >
             WHERE WILL YOU CLIMB?
           </motion.h1>
 
-          <div className="flex gap-12 justify-center w-full">
-            {/* Mountain Option */}
-            <motion.button
-              initial={{ x: -50, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.1 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setLocation('mountain')}
-              className="group relative w-80 h-96 rounded-3xl overflow-hidden border-4 border-white/20 hover:border-emerald-400 shadow-2xl transition-all"
-            >
-              <img src="/mountain.png" alt="Mountain" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-              <div className="absolute inset-0 bg-black/40 group-hover:bg-black/10 transition-colors"></div>
-              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 to-transparent">
-                <span className="text-4xl font-bold text-white group-hover:text-emerald-300 transition-colors">MOUNTAIN</span>
-                <p className="text-gray-300 mt-2 text-sm">The classic climb to the summit.</p>
-              </div>
-            </motion.button>
-
-            {/* Space Option */}
-            <motion.button
-              initial={{ x: 50, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setLocation('space')}
-              className="group relative w-80 h-96 rounded-3xl overflow-hidden border-4 border-white/20 hover:border-purple-400 shadow-2xl transition-all"
-            >
-              <img src="/space.png" alt="Space" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
-              <div className="absolute inset-0 bg-black/40 group-hover:bg-black/10 transition-colors"></div>
-              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/90 to-transparent">
-                <span className="text-4xl font-bold text-white group-hover:text-purple-300 transition-colors">SPACE</span>
-                <p className="text-gray-300 mt-2 text-sm">Ascend the cosmic elevator.</p>
-              </div>
-            </motion.button>
+          <div className="grid grid-cols-5 gap-6 justify-items-center w-full overflow-y-auto max-h-[80vh] p-4">
+            {locations.map((loc, index) => (
+              <motion.button
+                key={loc.id}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: index * 0.05 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setLocation(loc.id)}
+                className="group relative w-full aspect-[3/4] rounded-2xl overflow-hidden border-2 border-white/20 hover:border-white shadow-xl transition-all"
+              >
+                <img src={loc.src} alt={loc.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors"></div>
+                <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent text-left">
+                  <span className={`text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r ${loc.color}`}>{loc.name.toUpperCase()}</span>
+                  <p className="text-gray-300 mt-1 text-xs">{loc.description}</p>
+                </div>
+              </motion.button>
+            ))}
           </div>
         </div>
       </div>
@@ -217,7 +263,7 @@ export default function App() {
           </motion.h1>
 
           <div className="grid grid-cols-5 gap-8 justify-items-center w-full">
-            {characters.map((char, index) => (
+            {availableCharacters.map((char, index) => (
               <motion.button
                 key={char.id}
                 initial={{ opacity: 0, scale: 0.8 }}
@@ -244,7 +290,7 @@ export default function App() {
     <div className="relative w-screen h-screen overflow-hidden bg-gray-900 font-sans text-white select-none">
       {/* Background */}
       <img
-        src={location === 'space' ? '/space.png' : '/mountain.png'}
+        src={currentLocation?.src || '/mountain.png'}
         alt="Background"
         className="absolute inset-0 w-full h-full object-cover"
       />
@@ -260,13 +306,13 @@ export default function App() {
         <img
           src={`/${character}.png`}
           alt="Climber"
-          className="w-full h-full object-contain filter drop-shadow-lg"
+          className="w-full h-full object-contain filter drop-shadow-lg mix-blend-multiply"
         />
       </motion.div>
 
       {/* UI Overlay */}
       <div className="absolute top-4 left-4 p-4 bg-black/40 backdrop-blur-md rounded-xl border border-white/10">
-        <h1 className="text-xl font-bold text-yellow-400">Multiply {location === 'space' ? 'Mission' : 'Mountain'}</h1>
+        <h1 className="text-xl font-bold text-yellow-400">Multiply {currentLocation?.name || 'Mountain'}</h1>
         <div className="mt-2 flex items-center gap-2">
           <div className="w-48 h-4 bg-gray-700/50 rounded-full overflow-hidden border border-white/20">
             <motion.div
@@ -334,9 +380,9 @@ export default function App() {
               className="text-center p-12"
             >
               <h1 className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-tr from-yellow-300 via-orange-400 to-red-500 mb-4 drop-shadow-sm">
-                {location === 'space' ? 'MISSION COMPLETE!' : 'SUMMIT REACHED!'}
+                VICTORY!
               </h1>
-              <p className="text-2xl text-gray-200 mb-8">{location === 'space' ? 'You explored the galaxy!' : 'You conquered the mountain!'}</p>
+              <p className="text-2xl text-gray-200 mb-8">You conquered the {currentLocation?.name}!</p>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
