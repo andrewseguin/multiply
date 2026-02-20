@@ -40,14 +40,35 @@ export default function App() {
   const [isClimbing, setIsClimbing] = useState(false);
   const [character, setCharacter] = useState(null); // 'climber', 'robot', 'superhero'
   const [location, setLocation] = useState(null); // 'mountain', 'space', etc.
-  // celebrationEffect: 'eruption' | 'fireworks' | 'bubbles' | 'stars' | null
   const [celebrationEffect, setCelebrationEffect] = useState(null);
+  const [isGameOver, setIsGameOver] = useState(false);
+
+  // Mini-Game State
+  const [activeMiniGame, setActiveMiniGame] = useState(null); // 'gems' | null
+  const [isMiniGameChoiceOpen, setIsMiniGameChoiceOpen] = useState(false);
+  const [miniGameScore, setMiniGameScore] = useState(0);
+  const [miniGameTime, setMiniGameTime] = useState(0);
+  const [gems, setGems] = useState([]);
+  const [catcherX, setCatcherX] = useState(50); // percentage
 
   // Unlocked locations state, persisted in localStorage
   const [unlockedLocations, setUnlockedLocations] = useState(() => {
     const saved = localStorage.getItem('unlockedLocations');
     return saved ? JSON.parse(saved) : ['mountain'];
   });
+
+  const locationItemMap = {
+    mountain: '/gem.png',
+    volcano: '/fire_sphere.png',
+    jungle: '/banana.png',
+    ocean: '/pearl.png',
+    desert: '/gold_coin.png',
+    city: '/pizza_slice.png',
+    castle: '/golden_crown.png',
+    candy: '/lollipop.png',
+    sky: '/fluffy_feather.png',
+    space: '/glowing_star.png'
+  };
 
   const locations = [
     {
@@ -249,7 +270,13 @@ export default function App() {
 
       setStep(nextStep);
 
-      // Check for multiplication checkstop every 5 steps
+      // Check for mini-game choice every 10 steps
+      if (nextStep % 10 === 0 && nextStep !== 0) {
+        setIsMiniGameChoiceOpen(true);
+        return;
+      }
+
+      // Check for multiplication checkstop every 5 steps (if not a mini-game step)
       if (nextStep % 5 === 0 && nextStep !== 0) {
         setIsClimbing(true); // Lock input
         // Delay modal to let animation finish
@@ -292,23 +319,23 @@ export default function App() {
       setUserAnswer('');
       setIsError(false);
 
-      // Trigger Celebration
-      let effect = 'stars'; // Default
-      if (location === 'volcano') effect = 'eruption';
-      else if (location === 'ocean') effect = 'bubbles';
-      else if (['space', 'sky', 'city'].includes(location)) effect = 'fireworks';
-
-      setCelebrationEffect(effect);
+      setCelebrationEffect('character_rain');
       setTimeout(() => setCelebrationEffect(null), 3000); // 3 second celebration
 
       setStep(prev => prev + 1);
     } else {
       setIsError(true);
-      // Punishment: Move back 1 step
-      setStep((prev) => Math.max(0, prev - 1));
+      setIsGameOver(true);
+      setCelebrationEffect('failure_anvil');
+
+      // Failure sequence: Anvil drops, wait 3s, then reset game
+      setTimeout(() => {
+        restartGame();
+        setIsGameOver(false);
+        setCelebrationEffect(null);
+      }, 4000);
+
       setTimeout(() => setIsError(false), 500);
-      // Optional: Generate new problem or keep same? Usually keep same to limit frustration or change to prevent memorizing hard one.
-      // Let's keep same for now as punishment is moving back.
     }
   };
 
@@ -318,26 +345,102 @@ export default function App() {
     setIsModalOpen(false);
     setUserAnswer('');
     setCharacter(null); // Go back to character selection
-    setCharacter(null); // Go back to character selection
     setLocation(null); // Go back to location selection
   };
 
+  // Mini-Game Loop
+  useEffect(() => {
+    if (activeMiniGame !== 'gems') return;
+
+    const timer = setInterval(() => {
+      setMiniGameTime(prev => {
+        if (prev <= 0.1) {
+          clearInterval(timer);
+          // Finish game
+          setTimeout(() => {
+            setActiveMiniGame(null);
+            setGems([]);
+          }, 2000);
+          return 0;
+        }
+        return prev - 0.1;
+      });
+
+      // Spawn Gems (Themed Items)
+      if (Math.random() < 0.2) {
+        setGems(prev => [...prev, {
+          id: Math.random(),
+          src: locationItemMap[location] || '/gem.png',
+          x: Math.random() * 90 + 5,
+          y: -10,
+          speed: Math.random() * 2 + 1.5
+        }]);
+      }
+
+      // Move Gems
+      setGems(prev => {
+        return prev.map(gem => ({
+          ...gem,
+          y: gem.y + gem.speed
+        })).filter(gem => gem.y < 110);
+      });
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, [activeMiniGame]);
+
+  // Catch Collision Detection
+  useEffect(() => {
+    if (activeMiniGame !== 'gems') return;
+
+    setGems(prev => {
+      let hit = false;
+      const filtered = prev.filter(gem => {
+        // Simple hit box check
+        const isHit = gem.y > 80 && gem.y < 95 && Math.abs(gem.x - catcherX) < 10;
+        if (isHit) {
+          hit = true;
+          setMiniGameScore(s => s + 10);
+        }
+        return !isHit;
+      });
+      return filtered;
+    });
+  }, [catcherX, gems, activeMiniGame]);
+
+  // Mini-Game Controls
+  useEffect(() => {
+    if (activeMiniGame !== 'gems') return;
+
+    const handleMiniGameKey = (e) => {
+      if (e.key === 'ArrowLeft') setCatcherX(prev => Math.max(5, prev - 5));
+      if (e.key === 'ArrowRight') setCatcherX(prev => Math.min(95, prev + 5));
+    };
+
+    window.addEventListener('keydown', handleMiniGameKey);
+    return () => window.removeEventListener('keydown', handleMiniGameKey);
+  }, [activeMiniGame]);
+
+  const startGemsGame = () => {
+    setActiveMiniGame('gems');
+    setIsMiniGameChoiceOpen(false);
+    setMiniGameScore(0);
+    setMiniGameTime(15); // 15 seconds
+    setGems([]);
+    setCatcherX(50);
+  };
+
   const characters = [
-    { id: 'climber', name: 'Boy', src: '/climber.png', allowedLocations: ['mountain', 'volcano', 'jungle', 'desert', 'city', 'castle', 'candy'] },
-    { id: 'girl', name: 'Girl', src: '/girl.png', allowedLocations: ['mountain', 'volcano', 'jungle', 'desert', 'city', 'castle', 'candy'] },
-    { id: 'robot', name: 'Robot', src: '/robot.png', allowedLocations: ['volcano', 'ocean', 'city', 'candy', 'space'] },
-    { id: 'superhero', name: 'Hero', src: '/superhero.png', allowedLocations: ['volcano', 'ocean', 'city', 'sky', 'space'] },
-    { id: 'ninja', name: 'Ninja', src: '/ninja.png', allowedLocations: ['mountain', 'volcano', 'jungle', 'desert', 'city', 'sky'] },
-    { id: 'astronaut', name: 'Astro', src: '/astronaut.png', allowedLocations: ['space'] },
-    { id: 'pirate', name: 'Pirate', src: '/pirate.png', allowedLocations: ['jungle', 'ocean'] },
-    { id: 'wizard', name: 'Wizard', src: '/wizard.png', allowedLocations: ['mountain', 'castle', 'sky'] },
-    { id: 'knight', name: 'Knight', src: '/knight.png', allowedLocations: ['desert', 'castle'] },
-    { id: 'alien', name: 'Alien', src: '/alien.png', allowedLocations: ['ocean', 'candy', 'sky', 'space'] },
-    { id: 'dragon', name: 'Dragon', src: '/dragon.png', allowedLocations: ['volcano', 'castle', 'sky'] },
-    { id: 'monkey', name: 'Monkey', src: '/monkey.png', allowedLocations: ['jungle', 'mountain'] },
-    { id: 'diver', name: 'Diver', src: '/diver.png', allowedLocations: ['ocean'] },
-    { id: 'mummy', name: 'Mummy', src: '/mummy.png', allowedLocations: ['desert', 'castle'] },
-    { id: 'gingerbread', name: 'Ginger', src: '/gingerbread.png', allowedLocations: ['candy'] },
+    { id: 'mountain_goat', name: 'Goat', src: '/mountain_goat.png', location: 'mountain' },
+    { id: 'flame_golem', name: 'Golem', src: '/flame_golem.png', location: 'volcano' },
+    { id: 'emerald_monkey', name: 'Monkey', src: '/emerald_monkey.png', location: 'jungle' },
+    { id: 'scuba_octopus', name: 'Octo', src: '/scuba_octopus.png', location: 'ocean' },
+    { id: 'sand_nomad', name: 'Nomad', src: '/sand_nomad.png', location: 'desert' },
+    { id: 'techno_cat', name: 'Cat', src: '/techno_cat.png', location: 'city' },
+    { id: 'golden_knight', name: 'Knight', src: '/golden_knight.png', location: 'castle' },
+    { id: 'gummy_penguin', name: 'Gummy', src: '/gummy_penguin.png', location: 'candy' },
+    { id: 'sky_griffin', name: 'Griffin', src: '/sky_griffin.png', location: 'sky' },
+    { id: 'cosmic_astronaut', name: 'Cosmic', src: '/cosmic_astronaut.png', location: 'space' },
   ];
 
   const availableCharacters = characters.filter(char =>
@@ -373,9 +476,9 @@ export default function App() {
 
               const handleLocationSelect = () => {
                 setLocation(loc.id);
-                // Auto-pick character
-                const match = characters.find(c => c.allowedLocations?.includes(loc.id));
-                setCharacter(match ? match.id : 'climber');
+                // Auto-pick character (1:1 match)
+                const match = characters.find(c => c.location === loc.id);
+                setCharacter(match ? match.id : characters[0].id);
               };
 
               return (
@@ -465,8 +568,8 @@ export default function App() {
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-gray-900 font-sans text-white select-none">
-      {/* Background */}
+    <div className="relative w-screen h-screen overflow-hidden font-sans select-none isolation-auto">
+      {/* Location Background */}
       <motion.img
         src={currentLocation?.src || '/mountain.png'}
         alt="Background"
@@ -479,26 +582,91 @@ export default function App() {
         } : {}}
       />
 
-      {/* Climber */}
-      <motion.div
-        className="absolute w-24 h-24 z-10"
-        initial={getClimberPosition(step)}
-        animate={getClimberPosition(step)}
-        transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-      >
-        {/* Using a container for the image to handle flipping/scaling if needed */}
-        <img
-          src={`/${character}.png`}
-          alt="Climber"
-          className="w-full h-full object-contain filter drop-shadow-lg mix-blend-multiply"
-        />
-      </motion.div>
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{ isolation: 'isolate' }}>
+        {/* Climber */}
+        <motion.div
+          className="absolute w-24 h-24 z-10"
+          initial={getClimberPosition(step)}
+          animate={getClimberPosition(step)}
+          transition={{ type: 'spring', stiffness: 100, damping: 20 }}
+        >
+          {/* Using a container for the image to handle flipping/scaling if needed */}
+          <img
+            src={`/${character}.png`}
+            alt="Climber"
+            className="w-full h-full object-contain mix-blend-multiply brightness-[1.1] contrast-[1.1]"
+            style={isGameOver ? {
+              position: 'relative',
+              top: '50%',
+              transform: 'scaleY(0.05) translateY(100%)',
+              opacity: 0.9,
+              filter: 'grayscale(1) brightness(0.5)',
+              transition: 'all 0.1s ease-out'
+            } : {}}
+          />
+        </motion.div>
+      </div>
 
       {/* UI Overlay */}
       {/* Celebration Overlay Effects */}
       <AnimatePresence>
         {(victory || celebrationEffect) && (
           <>
+            {/* Failure Anvil Drop */}
+            {celebrationEffect === 'failure_anvil' && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-red-900/20 z-40 pointer-events-none"
+                />
+                <motion.img
+                  src="/anvil.png"
+                  initial={{ y: -600, x: "-50%", left: "50%" }}
+                  animate={{ y: "45vh" }}
+                  exit={{ opacity: 0 }}
+                  transition={{
+                    y: { type: 'spring', stiffness: 200, damping: 15 },
+                    duration: 0.6
+                  }}
+                  className="absolute w-64 h-64 object-contain z-50 mix-blend-multiply brightness-[1.1] contrast-[1.1]"
+                />
+                <motion.div
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ delay: 0.5 }}
+                  className="absolute inset-0 flex flex-col items-center justify-center z-[60] pointer-events-none"
+                >
+                  <h2 className="text-8xl font-black text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] animate-bounce">
+                    GAME OVER
+                  </h2>
+                  <p className="text-4xl font-bold text-red-500 bg-black/40 px-6 py-2 rounded-full mt-4">
+                    TRY AGAIN!
+                  </p>
+                </motion.div>
+              </>
+            )}
+
+            {/* Universal Character Rain */}
+            {(celebrationEffect === 'character_rain' || victory) && (
+              <div className="absolute inset-0 pointer-events-none z-30 overflow-hidden">
+                {[...Array(15)].map((_, i) => (
+                  <motion.img
+                    key={i}
+                    src={`/${character}.png`}
+                    initial={{ y: -200, x: Math.random() * 100 + "%", rotate: 0 }}
+                    animate={{
+                      y: "120vh",
+                      rotate: 360 * (Math.random() > 0.5 ? 1 : -1)
+                    }}
+                    transition={{ duration: 2 + Math.random(), delay: i * 0.1, ease: "linear" }}
+                    className="absolute w-28 h-28 object-contain mix-blend-multiply brightness-[1.1] contrast-[1.1]"
+                  />
+                ))}
+              </div>
+            )}
+
             {/* Volcano Eruption */}
             {(location === 'volcano' && (celebrationEffect === 'eruption' || victory)) && (
               <motion.img
@@ -639,6 +807,122 @@ export default function App() {
               </form>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Mini-Game Choice Modal */}
+      <AnimatePresence>
+        {isMiniGameChoiceOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-6">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 p-10 rounded-[3rem] border-4 border-white/30 shadow-2xl text-center max-w-lg w-full"
+            >
+              <h2 className="text-5xl font-black mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500 underline decoration-white/20">
+                BREAK TIME!
+              </h2>
+              <p className="text-2xl font-bold mb-10 text-white/90 leading-tight">
+                You've climbed so far! Want to take a break and catch some gems?
+              </p>
+              <div className="flex flex-col gap-4">
+                <button
+                  onClick={startGemsGame}
+                  className="w-full py-6 rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 text-white text-3xl font-black shadow-[0_10px_0_#1d4ed8] hover:shadow-[0_5px_0_#1d4ed8] hover:translate-y-[5px] active:shadow-none active:translate-y-[10px] transition-all"
+                >
+                  PLAY MINI-GAME!
+                </button>
+                <button
+                  onClick={() => setIsMiniGameChoiceOpen(false)}
+                  className="w-full py-4 rounded-xl bg-white/10 text-white/60 text-xl font-bold hover:bg-white/20 transition-all mt-4"
+                >
+                  No thanks, keep climbing
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Gem Catch Mini-Game Overlay */}
+      <AnimatePresence>
+        {activeMiniGame === 'gems' && (
+          <div className="fixed inset-0 z-[200] bg-gray-900 overflow-hidden select-none touch-none">
+            {/* Game Background */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#1a1a2e_0%,_#0f0f1a_100%)] opacity-50" />
+
+            {/* Stars */}
+            <div className="absolute inset-0 z-0">
+              {[...Array(50)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute bg-white rounded-full animate-pulse"
+                  style={{
+                    width: Math.random() * 3,
+                    height: Math.random() * 3,
+                    left: Math.random() * 100 + "%",
+                    top: Math.random() * 100 + "%",
+                    animationDelay: Math.random() * 5 + "s"
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Score & Timer */}
+            <div className="absolute top-10 inset-x-0 flex justify-between px-16 z-20">
+              <div className="bg-black/50 backdrop-blur px-8 py-4 rounded-2xl border-2 border-cyan-500/50">
+                <p className="text-cyan-400 text-sm font-bold uppercase tracking-widest mb-1">Score</p>
+                <p className="text-4xl font-black text-white font-mono">{miniGameScore}</p>
+              </div>
+              <div className="bg-black/50 backdrop-blur px-8 py-4 rounded-2xl border-2 border-pink-500/50">
+                <p className="text-pink-400 text-sm font-bold uppercase tracking-widest mb-1">Time</p>
+                <p className="text-4xl font-black text-white font-mono">{Math.ceil(miniGameTime)}s</p>
+              </div>
+            </div>
+
+            {/* Gems (Themed Items) */}
+            {gems.map(gem => (
+              <motion.img
+                key={gem.id}
+                src={gem.src}
+                className="absolute w-20 h-20 object-contain z-10 mix-blend-multiply brightness-[1.15] contrast-[1.2]"
+                style={{ left: gem.x + "%", top: gem.y + "%" }}
+              />
+            ))}
+
+            {/* Player / Catcher */}
+            <motion.div
+              className="absolute bottom-10 w-32 h-32 z-20 flex flex-col items-center"
+              animate={{ left: catcherX + "%" }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              style={{ x: "-50%" }}
+            >
+              <img
+                src={`/${character}.png`}
+                alt="Catcher"
+                className="w-full h-full object-contain filter drop-shadow-lg mix-blend-multiply brightness-[1.1] contrast-[1.1]"
+              />
+              <div className="w-110% h-4 bg-cyan-400/30 blur-md rounded-full mt-[-10px]" />
+            </motion.div>
+
+            {/* Controls Info */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/40 font-bold uppercase tracking-[0.2em] text-xs">
+              Use Left & Right Arrows to Move
+            </div>
+
+            {/* Finish Overlay */}
+            {miniGameTime <= 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="absolute inset-0 z-[210] flex flex-col items-center justify-center bg-black/60 backdrop-blur-xl"
+              >
+                <h3 className="text-7xl font-black text-white mb-4">TIME'S UP!</h3>
+                <p className="text-3xl font-bold text-cyan-400 mb-8">FINAL SCORE: {miniGameScore}</p>
+                <p className="text-white/40 animate-pulse font-bold tracking-widest uppercase">Returning to climb...</p>
+              </motion.div>
+            )}
+          </div>
         )}
       </AnimatePresence>
 
