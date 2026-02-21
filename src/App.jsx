@@ -478,6 +478,82 @@ export default function App() {
     { id: 'cosmic_astronaut', name: 'Cosmic', src: '/cosmic_astronaut.png', location: 'space' },
   ];
 
+  const climbingAids = {
+    girl: {
+      background: 'linear-gradient(to bottom, #8B4513 80%, #CD853F)',
+      borderLeft: '1px solid #5D2906',
+      borderRight: '1px solid #A0522D',
+      width: '4px',
+      offset: '3.1rem'
+    },
+    mountain_goat: {
+      background: 'repeating-linear-gradient(0deg, #8B4513, #8B4513 10px, #A0522D 10px, #A0522D 20px)',
+      width: '6px',
+      offset: '2.5rem',
+      boxShadow: '0 0 5px rgba(0,0,0,0.3)'
+    },
+    flame_golem: {
+      background: 'linear-gradient(to right, #FF4500, #FFD700, #FF4500)',
+      boxShadow: '0 0 15px #FF4500, 0 0 5px orange',
+      width: '8px',
+      offset: '2.8rem',
+      borderRadius: '4px'
+    },
+    emerald_monkey: {
+      background: 'linear-gradient(to bottom, #228B22 90%, #32CD32)',
+      width: '6px',
+      offset: '2.6rem',
+      borderRadius: '10px',
+      boxShadow: '0 0 5px rgba(0,0,0,0.2)'
+    },
+    scuba_octopus: {
+      background: 'linear-gradient(to bottom, #008080 80%, #20B2AA)',
+      width: '6px',
+      offset: '3.2rem',
+      borderRadius: '10px',
+      borderLeft: '2px dotted #00FFFF'
+    },
+    sand_nomad: {
+      background: '#D2B48C',
+      width: '6px',
+      offset: '3rem',
+      borderLeft: '2px dashed #8B4513'
+    },
+    techno_cat: {
+      background: 'linear-gradient(to bottom, #00FFFF, #00BFFF)',
+      boxShadow: '0 0 15px #00FFFF, 0 0 30px #00FFFF',
+      width: '3px',
+      offset: '2.9rem'
+    },
+    golden_knight: {
+      background: 'linear-gradient(to right, #808080, #C0C0C0, #808080)',
+      width: '10px',
+      offset: '2.7rem',
+      borderLeft: '1px solid #333',
+      borderRight: '1px solid #333'
+    },
+    gummy_penguin: {
+      background: 'linear-gradient(45deg, #FF69B4 25%, #FF1493 25%, #FF1493 50%, #FF69B4 50%, #FF69B4 75%, #FF1493 75%, #FF1493 100%)',
+      backgroundSize: '15px 15px',
+      width: '8px',
+      offset: '3.1rem',
+      borderRadius: '5px'
+    },
+    sky_griffin: {
+      background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.9))',
+      boxShadow: '0 0 10px white, 0 0 20px white',
+      width: '2px',
+      offset: '2.8rem'
+    },
+    cosmic_astronaut: {
+      background: 'linear-gradient(to right, #DDD, #FFF, #DDD)',
+      borderLeft: '1px solid #999',
+      borderRight: '1px solid #999',
+      width: '4px',
+      offset: '3rem'
+    }
+  };
+
   const availableCharacters = characters.filter(char =>
     !char.allowedLocations || char.allowedLocations.includes(location)
   );
@@ -617,21 +693,18 @@ export default function App() {
       />
 
       <div className="absolute inset-0 z-0 pointer-events-none" style={{ isolation: 'auto' }}>
-        {/* Rope for Climber Girl */}
-        {character === 'girl' && (
+        {/* Climbing Aid (Rope, Chain, Vine, etc.) */}
+        {character && climbingAids[character] && (
           <motion.div
             initial={getClimberPosition(step)}
             animate={getClimberPosition(step)}
             transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-            className="absolute w-1 z-[5]"
+            className="absolute z-[5]"
             style={{
               top: 0,
               bottom: `calc(${getClimberPosition(step).bottom} + 4rem)`,
-              background: 'linear-gradient(to bottom, #8B4513 80%, #CD853F)',
-              boxShadow: '0 0 5px rgba(0,0,0,0.5)',
-              borderLeft: '1px solid #5D2906',
-              borderRight: '1px solid #A0522D',
-              marginLeft: '3rem' // Offset to match girl's hand center
+              ...climbingAids[character],
+              marginLeft: climbingAids[character].offset || '3rem'
             }}
           />
         )}
