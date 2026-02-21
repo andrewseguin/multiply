@@ -255,7 +255,8 @@ export default function App() {
 
   const handleKeyDown = useCallback((e) => {
     // Only allow movement if character is selected
-    if (e.code === 'Space' && !isModalOpen && !victory && !isClimbing && character) {
+    const movementKeys = ['Space', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'ArrowDown'];
+    if (movementKeys.includes(e.code) && !isModalOpen && !victory && !isClimbing && character) {
       e.preventDefault(); // Prevent scrolling
 
       const nextStep = step + 1;
@@ -328,12 +329,13 @@ export default function App() {
       setIsGameOver(true);
       setCelebrationEffect('failure_anvil');
 
-      // Failure sequence: Anvil drops, wait 3s, then reset game
+      // Failure sequence: Camera shake + Anvil drops, wait 5s, then reset game
+      // Longer wait to see the "squashed" death state clearly
       setTimeout(() => {
         restartGame();
         setIsGameOver(false);
         setCelebrationEffect(null);
-      }, 4000);
+      }, 5000);
 
       setTimeout(() => setIsError(false), 500);
     }
@@ -348,15 +350,15 @@ export default function App() {
     setLocation(null); // Go back to location selection
   };
 
-  // Mini-Game Loop
+  // Mini-Game Loop: Location-Specific Mechanics
   useEffect(() => {
     if (activeMiniGame !== 'gems') return;
 
-    const timer = setInterval(() => {
+    // Movement/Physics Logic
+    const gameTimer = setInterval(() => {
       setMiniGameTime(prev => {
         if (prev <= 0.1) {
-          clearInterval(timer);
-          // Finish game
+          clearInterval(gameTimer);
           setTimeout(() => {
             setActiveMiniGame(null);
             setGems([]);
@@ -366,47 +368,79 @@ export default function App() {
         return prev - 0.1;
       });
 
-      // Spawn Gems (Themed Items)
-      if (Math.random() < 0.2) {
-        setGems(prev => [...prev, {
-          id: Math.random(),
-          src: locationItemMap[location] || '/gem.png',
-          x: Math.random() * 90 + 5,
-          y: -10,
-          speed: Math.random() * 2 + 1.5
-        }]);
-      }
+      setGems(prev => prev.map(gem => {
+        let { x, y, vx, vy, scale } = gem;
 
-      // Move Gems
-      setGems(prev => {
-        return prev.map(gem => ({
-          ...gem,
-          y: gem.y + gem.speed
-        })).filter(gem => gem.y < 110);
-      });
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, [activeMiniGame]);
-
-  // Catch Collision Detection
-  useEffect(() => {
-    if (activeMiniGame !== 'gems') return;
-
-    setGems(prev => {
-      let hit = false;
-      const filtered = prev.filter(gem => {
-        // Simple hit box check
-        const isHit = gem.y > 80 && gem.y < 95 && Math.abs(gem.x - catcherX) < 10;
-        if (isHit) {
-          hit = true;
-          setMiniGameScore(s => s + 10);
+        // Ocean: Rise Up
+        if (location === 'ocean') {
+          y += vy;
         }
-        return !isHit;
-      });
-      return filtered;
-    });
-  }, [catcherX, gems, activeMiniGame]);
+        // Space/Sky/City: Drift Across
+        else if (['space', 'sky', 'city'].includes(location)) {
+          x += vx;
+          y += vy;
+        }
+        // Candy/Castle/Desert: Shrink
+        else if (['candy', 'castle', 'desert'].includes(location)) {
+          scale -= 0.01;
+        }
+
+        return { ...gem, x, y, scale };
+      }).filter(gem => {
+        // Filter out items that leave the screen or vanish
+        if (gem.scale <= 0.1) return false;
+        if (gem.y < -20 || gem.y > 120 || gem.x < -20 || gem.x > 120) return false;
+        return true;
+      }));
+    }, 50);
+
+    const spawnInterval = setInterval(() => {
+      const spawnRate = 0.7;
+      if (Math.random() < spawnRate) {
+        let x, y, vx = 0, vy = 0, scale = 1;
+
+        if (location === 'ocean') {
+          // Bubbles start at bottom
+          x = Math.random() * 80 + 10;
+          y = 110;
+          vy = -(Math.random() * 0.8 + 0.4);
+        } else if (['space', 'sky', 'city'].includes(location)) {
+          // Stars drift from left or right
+          const fromLeft = Math.random() > 0.5;
+          x = fromLeft ? -10 : 110;
+          y = Math.random() * 70 + 10;
+          vx = fromLeft ? (Math.random() * 0.5 + 0.2) : -(Math.random() * 0.5 + 0.2);
+          vy = (Math.random() - 0.5) * 0.2;
+        } else {
+          // Default: Blitz or Rush
+          x = Math.random() * 80 + 10;
+          y = Math.random() * 60 + 20;
+          if (['candy', 'castle', 'desert'].includes(location)) {
+            scale = 1.2;
+          }
+        }
+
+        const newGem = { id: Math.random(), src: locationItemMap[location] || '/gem.png', x, y, vx, vy, scale };
+        setGems(prev => [...prev, newGem]);
+
+        if (['mountain', 'volcano', 'jungle'].includes(location)) {
+          setTimeout(() => {
+            setGems(prev => prev.filter(g => g.id !== newGem.id));
+          }, 1500);
+        }
+      }
+    }, 600);
+
+    return () => {
+      clearInterval(gameTimer);
+      clearInterval(spawnInterval);
+    };
+  }, [activeMiniGame, location]);
+
+  const handleGemClick = (gemId) => {
+    setMiniGameScore(s => s + 50);
+    setGems(prev => prev.filter(g => g.id !== gemId));
+  };
 
   // Mini-Game Controls
   useEffect(() => {
@@ -431,6 +465,7 @@ export default function App() {
   };
 
   const characters = [
+    { id: 'girl', name: 'Climber', src: '/girl.png' },
     { id: 'mountain_goat', name: 'Goat', src: '/mountain_goat.png', location: 'mountain' },
     { id: 'flame_golem', name: 'Golem', src: '/flame_golem.png', location: 'volcano' },
     { id: 'emerald_monkey', name: 'Monkey', src: '/emerald_monkey.png', location: 'jungle' },
@@ -476,9 +511,8 @@ export default function App() {
 
               const handleLocationSelect = () => {
                 setLocation(loc.id);
-                // Auto-pick character (1:1 match)
-                const match = characters.find(c => c.location === loc.id);
-                setCharacter(match ? match.id : characters[0].id);
+                // Allow user to pick their character
+                setCharacter(null);
               };
 
               return (
@@ -555,8 +589,8 @@ export default function App() {
                 onClick={() => setCharacter(char.id)}
                 className="group flex flex-col items-center gap-4 relative w-full"
               >
-                <div className="w-32 h-32 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center p-2 border border-white/20 group-hover:border-cyan-400 group-hover:bg-cyan-500/20 group-hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] transition-all duration-300">
-                  <img src={char.src} alt={char.name} className="w-full h-full object-contain filter drop-shadow-lg" />
+                <div className="w-32 h-32 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center p-2 border border-white/20 group-hover:border-cyan-400 group-hover:bg-cyan-500/20 group-hover:shadow-[0_0_30px_rgba(34,211,238,0.5)] transition-all duration-300 overflow-hidden">
+                  <img src={char.src} alt={char.name} className="w-full h-full object-contain filter drop-shadow-xl" />
                 </div>
                 <span className="text-xl font-bold text-gray-200 group-hover:text-cyan-300 transition-colors uppercase tracking-wider">{char.name}</span>
               </motion.button>
@@ -582,7 +616,7 @@ export default function App() {
         } : {}}
       />
 
-      <div className="absolute inset-0 z-0 pointer-events-none" style={{ isolation: 'isolate' }}>
+      <div className="absolute inset-0 z-0 pointer-events-none" style={{ isolation: 'auto' }}>
         {/* Climber */}
         <motion.div
           className="absolute w-24 h-24 z-10"
@@ -594,14 +628,16 @@ export default function App() {
           <img
             src={`/${character}.png`}
             alt="Climber"
-            className="w-full h-full object-contain mix-blend-multiply brightness-[1.1] contrast-[1.1]"
+            className={clsx(
+              "w-full h-full object-contain",
+              isGameOver && "grayscale-[1] brightness-[0.3]"
+            )}
             style={isGameOver ? {
               position: 'relative',
               top: '50%',
-              transform: 'scaleY(0.05) translateY(100%)',
+              transform: 'scaleY(0.12) translateY(300%)',
               opacity: 0.9,
-              filter: 'grayscale(1) brightness(0.5)',
-              transition: 'all 0.1s ease-out'
+              transition: 'all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
             } : {}}
           />
         </motion.div>
@@ -627,10 +663,10 @@ export default function App() {
                   animate={{ y: "45vh" }}
                   exit={{ opacity: 0 }}
                   transition={{
-                    y: { type: 'spring', stiffness: 200, damping: 15 },
-                    duration: 0.6
+                    y: { type: 'spring', stiffness: 400, damping: 10 },
+                    duration: 0.4
                   }}
-                  className="absolute w-64 h-64 object-contain z-50 mix-blend-multiply brightness-[1.1] contrast-[1.1]"
+                  className="absolute w-72 h-72 object-contain z-50 mix-blend-multiply brightness-[1.1] contrast-[1.1]"
                 />
                 <motion.div
                   initial={{ scale: 0, opacity: 0 }}
@@ -638,11 +674,11 @@ export default function App() {
                   transition={{ delay: 0.5 }}
                   className="absolute inset-0 flex flex-col items-center justify-center z-[60] pointer-events-none"
                 >
-                  <h2 className="text-8xl font-black text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)] animate-bounce">
-                    GAME OVER
+                  <h2 className="text-8xl font-black text-white drop-shadow-[0_10px_20px_rgba(0,0,0,1)] animate-bounce italic">
+                    WHACKED!
                   </h2>
-                  <p className="text-4xl font-bold text-red-500 bg-black/40 px-6 py-2 rounded-full mt-4">
-                    TRY AGAIN!
+                  <p className="text-4xl font-bold text-red-500 bg-black/60 px-8 py-3 rounded-full mt-6 backdrop-blur-sm border-2 border-red-500/30">
+                    GET SLAMMED!
                   </p>
                 </motion.div>
               </>
@@ -661,7 +697,7 @@ export default function App() {
                       rotate: 360 * (Math.random() > 0.5 ? 1 : -1)
                     }}
                     transition={{ duration: 2 + Math.random(), delay: i * 0.1, ease: "linear" }}
-                    className="absolute w-28 h-28 object-contain mix-blend-multiply brightness-[1.1] contrast-[1.1]"
+                    className="absolute w-28 h-28 object-contain pointer-events-none"
                   />
                 ))}
               </div>
@@ -880,34 +916,33 @@ export default function App() {
               </div>
             </div>
 
-            {/* Gems (Themed Items) */}
-            {gems.map(gem => (
-              <motion.img
-                key={gem.id}
-                src={gem.src}
-                className="absolute w-20 h-20 object-contain z-10 mix-blend-multiply brightness-[1.15] contrast-[1.2]"
-                style={{ left: gem.x + "%", top: gem.y + "%" }}
-              />
-            ))}
-
-            {/* Player / Catcher */}
-            <motion.div
-              className="absolute bottom-10 w-32 h-32 z-20 flex flex-col items-center"
-              animate={{ left: catcherX + "%" }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              style={{ x: "-50%" }}
-            >
-              <img
-                src={`/${character}.png`}
-                alt="Catcher"
-                className="w-full h-full object-contain filter drop-shadow-lg mix-blend-multiply brightness-[1.1] contrast-[1.1]"
-              />
-              <div className="w-110% h-4 bg-cyan-400/30 blur-md rounded-full mt-[-10px]" />
-            </motion.div>
+            {/* Gems (Blitz Items) */}
+            <div className="absolute inset-0 z-10">
+              <AnimatePresence>
+                {gems.map(gem => (
+                  <motion.img
+                    key={gem.id}
+                    src={gem.src}
+                    initial={{ scale: 0, opacity: 0, rotate: -45 }}
+                    animate={{ scale: 1.2, opacity: 1, rotate: 0 }}
+                    exit={{ scale: 0, opacity: 0, rotate: 45 }}
+                    whileHover={{ scale: 1.4 }}
+                    whileTap={{ scale: 0.8 }}
+                    onClick={() => handleGemClick(gem.id)}
+                    className="absolute w-24 h-24 object-contain cursor-pointer drop-shadow-[0_0_15px_rgba(255,255,255,0.5)] active:brightness-150"
+                    style={{
+                      left: gem.x + "%",
+                      top: gem.y + "%",
+                      transform: `scale(${gem.scale || 1})`
+                    }}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
 
             {/* Controls Info */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white/40 font-bold uppercase tracking-[0.2em] text-xs">
-              Use Left & Right Arrows to Move
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 text-cyan-400 font-black uppercase tracking-[0.3em] text-xl bg-black/40 px-8 py-3 rounded-full border border-cyan-500/30 backdrop-blur-sm animate-pulse">
+              TAP THE GEMS FAST!
             </div>
 
             {/* Finish Overlay */}
