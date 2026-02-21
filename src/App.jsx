@@ -617,6 +617,25 @@ export default function App() {
       />
 
       <div className="absolute inset-0 z-0 pointer-events-none" style={{ isolation: 'auto' }}>
+        {/* Rope for Climber Girl */}
+        {character === 'girl' && (
+          <motion.div
+            initial={getClimberPosition(step)}
+            animate={getClimberPosition(step)}
+            transition={{ type: 'spring', stiffness: 100, damping: 20 }}
+            className="absolute w-1 z-[5]"
+            style={{
+              top: 0,
+              bottom: `calc(${getClimberPosition(step).bottom} + 4rem)`,
+              background: 'linear-gradient(to bottom, #8B4513 80%, #CD853F)',
+              boxShadow: '0 0 5px rgba(0,0,0,0.5)',
+              borderLeft: '1px solid #5D2906',
+              borderRight: '1px solid #A0522D',
+              marginLeft: '3rem' // Offset to match girl's hand center
+            }}
+          />
+        )}
+
         {/* Climber */}
         <motion.div
           className="absolute w-24 h-24 z-10"
