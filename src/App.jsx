@@ -4,29 +4,33 @@ import clsx from 'clsx';
 import MovingObject from './components/MovingObject';
 import './index.css';
 
-// Generate a random multiplication problem based on difficulty (current step)
-const generateProblem = (currentStep) => {
+// Generate a random problem based on mode and difficulty (current step)
+const generateProblem = (currentStep, mode = 'multiply') => {
   let min = 1;
   let max = 12;
 
   // Progressive Difficulty
   if (currentStep <= 15) {
-    // Easy: 1x1 to 5x5
+    // Easy
     min = 1;
     max = 5;
   } else if (currentStep <= 30) {
-    // Medium: 2x2 to 7x7
+    // Medium
     min = 2;
     max = 7;
   } else {
-    // Hard: 5x5 to 10x10 (Capped at 10x10)
+    // Hard (Capped)
     min = 5;
     max = 10;
   }
 
   const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
   const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
-  return { num1, num2, answer: num1 * num2 };
+
+  if (mode === 'addition') {
+    return { num1, num2, answer: num1 + num2, symbol: '+' };
+  }
+  return { num1, num2, answer: num1 * num2, symbol: '×' };
 };
 
 export default function App() {
@@ -38,8 +42,9 @@ export default function App() {
   const [victory, setVictory] = useState(false);
 
   const [isClimbing, setIsClimbing] = useState(false);
-  const [character, setCharacter] = useState(null); // 'climber', 'robot', 'superhero'
-  const [location, setLocation] = useState(null); // 'mountain', 'space', etc.
+  const [gameMode, setGameMode] = useState(null); // 'multiply', 'addition'
+  const [character, setCharacter] = useState(null);
+  const [location, setLocation] = useState(null);
   const [celebrationEffect, setCelebrationEffect] = useState(null);
   const [isGameOver, setIsGameOver] = useState(false);
 
@@ -282,7 +287,7 @@ export default function App() {
         setIsClimbing(true); // Lock input
         // Delay modal to let animation finish
         setTimeout(() => {
-          setProblem(generateProblem(nextStep));
+          setProblem(generateProblem(nextStep, gameMode));
           setIsModalOpen(true);
           setIsClimbing(false);
         }, 600);
@@ -346,8 +351,9 @@ export default function App() {
     setVictory(false);
     setIsModalOpen(false);
     setUserAnswer('');
-    setCharacter(null); // Go back to character selection
-    setLocation(null); // Go back to location selection
+    setCharacter(null);
+    setLocation(null);
+    setGameMode(null); // Go back to mode selection
   };
 
   // Mini-Game Loop: Location-Specific Mechanics
@@ -557,6 +563,51 @@ export default function App() {
   const availableCharacters = characters.filter(char =>
     !char.allowedLocations || char.allowedLocations.includes(location)
   );
+
+  if (!gameMode) {
+    return (
+      <div className="relative w-screen h-screen overflow-hidden bg-gray-900 font-sans text-white select-none flex items-center justify-center">
+        <div className="absolute inset-0">
+          <img src="/select-bg.png" alt="Background" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md"></div>
+        </div>
+
+        <div className="relative z-10 w-full max-w-4xl p-8 text-center flex flex-col items-center">
+          <motion.h1
+            initial={{ y: -50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="text-7xl font-black mb-16 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-600 drop-shadow-[0_5px_15px_rgba(255,165,0,0.4)]"
+          >
+            SELECT YOUR CHALLENGE
+          </motion.h1>
+
+          <div className="flex gap-12 w-full max-w-3xl">
+            <motion.button
+              whileHover={{ scale: 1.05, translateY: -5 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setGameMode('addition')}
+              className="flex-1 bg-white/10 backdrop-blur-xl border-2 border-green-500/30 rounded-3xl p-10 hover:border-green-400 hover:bg-green-500/10 transition-all group"
+            >
+              <div className="text-8xl mb-6 group-hover:scale-110 transition-transform">➕</div>
+              <h2 className="text-4xl font-black text-green-400 uppercase tracking-tighter">Addition</h2>
+              <p className="text-gray-400 mt-4 text-sm font-bold uppercase tracking-widest">Master the sums</p>
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.05, translateY: -5 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setGameMode('multiply')}
+              className="flex-1 bg-white/10 backdrop-blur-xl border-2 border-cyan-500/30 rounded-3xl p-10 hover:border-cyan-400 hover:bg-cyan-500/10 transition-all group"
+            >
+              <div className="text-8xl mb-6 group-hover:scale-110 transition-transform">✖️</div>
+              <h2 className="text-4xl font-black text-cyan-400 uppercase tracking-tighter">Multiply</h2>
+              <p className="text-gray-400 mt-4 text-sm font-bold uppercase tracking-widest">Conquer the climb</p>
+            </motion.button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!location) {
     return (
@@ -885,7 +936,7 @@ export default function App() {
 
       {/* UI Overlay */}
       <div className="absolute top-4 left-4 p-4 bg-black/40 backdrop-blur-md rounded-xl border border-white/10 z-20">
-        <h1 className="text-xl font-bold text-yellow-400">Multiply {currentLocation?.name || 'Mountain'}</h1>
+        <h1 className="text-xl font-bold text-yellow-400 capitalize">{gameMode} {currentLocation?.name || 'Mountain'}</h1>
         <div className="mt-2 flex items-center gap-2">
           <div className="w-48 h-4 bg-gray-700/50 rounded-full overflow-hidden border border-white/20">
             <motion.div
@@ -915,7 +966,7 @@ export default function App() {
             >
               <h2 className="text-3xl font-bold mb-6 text-white text-shadow">Challenge!</h2>
               <div className="text-5xl font-mono mb-8 font-bold text-cyan-300">
-                {problem.num1} × {problem.num2} = ?
+                {problem.num1} {problem.symbol} {problem.num2} = ?
               </div>
               <form onSubmit={handleAnswerSubmit} className="flex flex-col gap-4">
                 <input
